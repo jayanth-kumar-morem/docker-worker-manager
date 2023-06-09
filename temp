@@ -1,0 +1,85 @@
+.
+├── build.gradle
+├── gradle
+│   └── wrapper
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+├── gradlew
+├── gradlew.bat
+├── openfabric-api
+│   ├── build
+│   │   ├── classes
+│   │   │   └── java
+│   │   │       └── main
+│   │   │           └── ai
+│   │   │               └── openfabric
+│   │   │                   └── api
+│   │   │                       ├── Application.class
+│   │   │                       ├── config
+│   │   │                       │   ├── CorsConfig.class
+│   │   │                       │   ├── ElideConfig.class
+│   │   │                       │   ├── SwaggerConfig.class
+│   │   │                       │   └── WebSecurityConfig.class
+│   │   │                       ├── controller
+│   │   │                       │   └── WorkerController.class
+│   │   │                       ├── model
+│   │   │                       │   ├── IDGenerator.class
+│   │   │                       │   └── Worker.class
+│   │   │                       └── repository
+│   │   │                           └── WorkerRepository.class
+│   │   ├── generated
+│   │   │   └── sources
+│   │   │       ├── annotationProcessor
+│   │   │       │   └── java
+│   │   │       │       └── main
+│   │   │       └── headers
+│   │   │           └── java
+│   │   │               └── main
+│   │   ├── resources
+│   │   │   └── main
+│   │   │       ├── application-base.yaml
+│   │   │       ├── application-local.yaml
+│   │   │       ├── application.yaml
+│   │   │       ├── db
+│   │   │       │   ├── changelog
+│   │   │       │   │   └── table-schema.xml
+│   │   │       │   └── liquibase-changelog.xml
+│   │   │       └── logback.xml
+│   │   └── tmp
+│   │       └── compileJava
+│   │           └── source-classes-mapping.txt
+│   ├── build.gradle
+│   └── src
+│       └── main
+│           ├── java
+│           │   └── ai
+│           │       └── openfabric
+│           │           └── api
+│           │               ├── Application.java
+│           │               ├── config
+│           │               │   ├── CorsConfig.java
+│           │               │   ├── ElideConfig.java
+│           │               │   ├── SwaggerConfig.java
+│           │               │   └── WebSecurityConfig.java
+│           │               ├── controller
+│           │               │   └── WorkerController.java
+│           │               ├── model
+│           │               │   ├── Datable.java
+│           │               │   ├── IDGenerator.java
+│           │               │   └── Worker.java
+│           │               └── repository
+│           │                   └── WorkerRepository.java
+│           └── resources
+│               ├── application-base.yaml
+│               ├── application-local.yaml
+│               ├── application.yaml
+│               ├── db
+│               │   ├── changelog
+│               │   │   └── table-schema.xml
+│               │   └── liquibase-changelog.xml
+│               └── logback.xml
+├── readme.md
+├── settings.gradle
+└── temp
+
+42 directories, 41 files
