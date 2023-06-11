@@ -57,6 +57,4 @@ public class SwaggerConfig implements WebMvcConfigurer {
                         new SecurityReference("Authorization", new AuthorizationScope[0])))
                 .build();
     }
-
-
 }

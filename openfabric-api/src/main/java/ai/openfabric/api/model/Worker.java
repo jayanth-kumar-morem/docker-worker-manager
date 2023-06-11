@@ -1,20 +1,21 @@
 package ai.openfabric.api.model;
 
 
-import ai.openfabric.api.enums.ContainerStatus;
-import lombok.Builder;
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import ai.openfabric.api.enums.ContainerState;
+import lombok.*;
 import org.hibernate.annotations.GenericGenerator;
 
-import javax.persistence.*;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
 import java.io.Serializable;
-import java.util.List;
 
 @Entity()
 @Builder
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class Worker extends Datable implements Serializable {
 
     @Id
@@ -24,16 +25,13 @@ public class Worker extends Datable implements Serializable {
     @Setter
     public String id;
 
-    @ElementCollection
-    public List<String> workerNames;
+    public String workerName;
 
     private String dockerImageName;
 
     private String dockerImageId;
 
-    private ContainerStatus status;
-
-    private Long created;
+    private ContainerState status;
 
     private Long port;
 }

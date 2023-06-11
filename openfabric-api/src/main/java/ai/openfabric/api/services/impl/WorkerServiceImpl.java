@@ -1,127 +1,251 @@
 package ai.openfabric.api.services.impl;
 
-import ai.openfabric.api.client.DockerClientUtils;
-import ai.openfabric.api.dtos.ContainerListPageDTO;
-import ai.openfabric.api.dtos.PageFilters;
-import ai.openfabric.api.dtos.WorkerResponseDTO;
-import ai.openfabric.api.dtos.WorkerStatsResponseDTO;
-import ai.openfabric.api.enums.ContainerStatus;
-import ai.openfabric.api.exceptions.WorkerErrorDetail;
-import ai.openfabric.api.exceptions.WorkerException;
-import ai.openfabric.api.helper;
+import ai.openfabric.api.dockermanager.DockerManager;
+import ai.openfabric.api.config.DockerSettings;
+import ai.openfabric.api.dtos.*;
+import ai.openfabric.api.enums.ContainerState;
+import ai.openfabric.api.exceptions.DockerWorkerException;
+import ai.openfabric.api.exceptions.WorkerErrorInfo;
+import ai.openfabric.api.JsonHelper;
 import ai.openfabric.api.model.Worker;
 import ai.openfabric.api.repository.WorkerRepository;
 import ai.openfabric.api.services.IWorkerService;
-import ai.openfabric.api.services.mappers.WorkerMapper;
+import ai.openfabric.api.services.mappers.WorkerConverter;
 import com.github.dockerjava.api.model.Statistics;
-import java.awt.print.Pageable;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.thymeleaf.util.StringUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
 
 @Service
 public class WorkerServiceImpl implements IWorkerService {
 
-    private DockerClientUtils dockerClientUtils = DockerClientUtils.getInstance();
+    @Autowired
+    private DockerSettings dockerSettings;
 
-    @Autowired WorkerRepository workerRepository;
+    private DockerManager dockerManager;
 
+    @Autowired
+    private WorkerRepository workerRepository;
 
-    @Override
-    public WorkerResponseDTO updateWorkerStatus(String workerId, ContainerStatus newStatus) throws WorkerException {
-        validateWorkerId(workerId);
-        Worker worker = fetchAndPersistWorkerInfo(workerId);
-        boolean updated = executeWorkerWithStatus(newStatus, workerId, worker.getStatus());
-        if (updated) {
-            worker = fetchAndPersistWorkerInfo(workerId);
-        }
-        return WorkerMapper.toWorkerResponseDTO(worker);
+    @Autowired
+    public WorkerServiceImpl(DockerSettings dockerSettings) {
+        this.dockerSettings = dockerSettings;
+        this.dockerManager = new DockerManager(dockerSettings);
     }
 
     @Override
-    public WorkerResponseDTO getWorkerInformation(String workerId) throws WorkerException {
+    public WorkerInfoDTO setWorkerState(String workerId, ContainerState newStatus) throws DockerWorkerException {
+        // Validate the worker ID
         validateWorkerId(workerId);
-        Worker worker = fetchAndPersistWorkerInfo(workerId);
-        return WorkerMapper.toWorkerResponseDTO(worker);
+
+        // Fetch the worker info and persist it
+        Worker existingWorker = fetchAndPersistWorkerInfo(workerId);
+
+        // Check if the worker's status needs to be updated
+        if (shouldUpdateStatus(newStatus, existingWorker.getStatus())) {
+            // Execute the update operation
+            executeWorkerStatusUpdate(newStatus, workerId);
+
+            // Fetch the updated worker info and persist it
+            existingWorker = fetchAndPersistWorkerInfo(workerId);
+        }
+
+        // Convert the updated worker into a response DTO and return it
+        return WorkerConverter.convertToWorkerInfoDTO(existingWorker);
     }
 
-    @Override
-    public List<WorkerResponseDTO> getContainerList(ContainerListPageDTO pageInfo) {
-        if (Objects.isNull(pageInfo)){
-            return new ArrayList<>();
-        }
-        int pageSize = helper.getNullSafeObject(() -> pageInfo.getPageSize()).orElse(10);
-        int pageNumber = helper.getNullSafeObject(() -> pageInfo.getPageNumber()).orElse(0);
-        Pageable pageable = (Pageable) PageRequest.of(pageNumber, pageSize);
+    // Check if the worker's status needs to be updated
+    private boolean shouldUpdateStatus(ContainerState newStatus, ContainerState currentStatus) {
+        return !currentStatus.equals(newStatus);
+    }
 
-        List<Worker> filteredWorkers = new ArrayList<> ();
-        List<Worker> syncedWorkers = dockerClientUtils.currentContainers();
-        workerRepository.saveAll(syncedWorkers);
-
-        if (Objects.nonNull(pageInfo.getPageFilters())) {
-            PageFilters pageFilters = pageInfo.getPageFilters();
-            if (Objects.nonNull(pageFilters.getContainerId())) {
-                filteredWorkers = workerRepository.findAllById(pageFilters.getContainerId(), pageable);
-            } else if (Objects.nonNull(pageFilters.getStatus())) {
-                filteredWorkers = workerRepository.findAllByStatus(pageFilters.getStatus(), pageable);
-            }
+    // Execute the update operation to change the worker's status
+    private void executeWorkerStatusUpdate(ContainerState newStatus, String workerId) throws DockerWorkerException {
+        Optional<Worker> workerOptional = workerRepository.findById(workerId);
+        if (workerOptional.isPresent()) {
+            Worker worker = workerOptional.get();
+            worker.setStatus(newStatus);
+            workerRepository.save(worker);
         } else {
-            filteredWorkers = workerRepository.findAll(pageable);
+            throw new DockerWorkerException(
+                    WorkerErrorInfo.builder()
+                            .error("1234")
+                            .description("No worker found with this ID.")
+                            .build());
         }
+    }
+
+
+
+@Override
+public WorkerInfoDTO retrieveWorkerInformation(String workerId) throws DockerWorkerException {
+    // Validate the worker ID
+    validateWorkerId(workerId);
+
+    // Fetch and persist worker information
+    Worker persistedWorker = fetchAndPersistWorkerInfo(workerId);
+
+    // Convert the persisted worker to a response DTO
+    WorkerInfoDTO responseDTO = WorkerConverter.convertToWorkerInfoDTO(persistedWorker);
+
+    // Return the response DTO
+    return responseDTO;
+}
+
+    @Override
+    public List<WorkerInfoDTO> retrieveContainerList(ContainersListRequestDTO requestDTO) {
+        // Check if the requestDTO is null
+        if (requestDTO == null) {
+            return new ArrayList<>(); // Return an empty list
+        }
+
+        // Get the page size and page number from requestDTO with default values
+        int pageSize = JsonHelper.safeResolve(() -> requestDTO.getPageLimit()).orElse(10);
+        int pageNumber = JsonHelper.safeResolve(() -> requestDTO.getPageIndex()).orElse(0);
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+        // Initialize the list of filtered workers and retrieve the current containers
+        List<Worker> filteredWorkers = new ArrayList<>();
+        List<Worker> currentContainers = dockerManager.retrieveCurrentContainers();
+
+        // Save the current containers to the worker repository
+        workerRepository.saveAll(currentContainers);
+
+        // Check if page filters exist in the requestDTO
+        if (Objects.nonNull(requestDTO.getFilterOptions())) {
+            FilterOptions filterOptions = requestDTO.getFilterOptions();
+
+            // Check if the container ID filter is present
+            if (Objects.nonNull(filterOptions.getIdFilter())) {
+                filteredWorkers = workerRepository.findAllById(filterOptions.getIdFilter(), pageable);
+            }
+            // Check if the status filter is present
+            else if (Objects.nonNull(filterOptions.getContainerState())) {
+                filteredWorkers = workerRepository.findAllByStatus(filterOptions.getContainerState(), pageable);
+            }
+        }
+        // If page filters do not exist, retrieve all workers with pagination
+        else {
+            Page<Worker> workerPage = workerRepository.findAll(pageable);
+            filteredWorkers = workerPage.getContent();
+        }
+
+        // Map the filtered workers to WorkerInfoDTO and collect them into a list
         return filteredWorkers.stream()
-                .map(WorkerMapper::toWorkerResponseDTO)
+                .map(WorkerConverter::convertToWorkerInfoDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public WorkerStatsResponseDTO getWorkerStatistics(String workerId) throws WorkerException {
+    public WorkerStatisticsDTO retrieveWorkerStatistics(String workerId) throws DockerWorkerException {
+        // Validate the worker ID
         validateWorkerId(workerId);
-        Statistics stats = dockerClientUtils.getContainerStatistics(workerId);
-        WorkerStatsResponseDTO workerStats = WorkerMapper.toWorkerStatsResponse(stats);
-        workerStats.setWorkerId(workerId);
-        return workerStats;
+
+        // Retrieve the container statistics for the worker
+        Statistics containerStats = dockerManager.retrieveContainerStatistics(workerId);
+
+        // Map the container statistics to a WorkerStatisticsDTO object
+        WorkerStatisticsDTO workerStatisticsDTO = WorkerConverter.convertToWorkerStatsDTO(containerStats);
+
+        // Set the worker ID in the response DTO
+        workerStatisticsDTO.setId(workerId);
+
+        // Return the worker statistics response DTO
+        return workerStatisticsDTO;
     }
 
-    private Worker fetchAndPersistWorkerInfo(String workerId) throws WorkerException {
-        Worker workerDetail = dockerClientUtils.getContainerInfo(workerId);
-        if (Objects.isNull(workerDetail)) {
-            throw new WorkerException(WorkerErrorDetail.builder()
-                    .errorCode("1234")
-                    .errorMessage("no worker with this Id.").build());
+    private Worker fetchAndPersistWorkerInfo(String workerId) throws DockerWorkerException {
+        // Fetch worker information from the Docker client
+        Worker worker = dockerManager.retrieveContainerDetails(workerId);
+
+        // Check if worker information is null
+        if (Objects.isNull(worker)) {
+            // Throw a DockerWorkerException if worker information is not found
+            throw new DockerWorkerException(
+                    WorkerErrorInfo.builder()
+                            .error("1234")
+                            .description("No worker found with this ID.")
+                            .build());
         }
-        return workerRepository.save(workerDetail);
+
+        // Save the worker information to the repository
+        return workerRepository.save(worker);
     }
 
-    private void validateWorkerId(String workerId) throws WorkerException {
+    private void validateWorkerId(String workerId) throws DockerWorkerException {
+        // Check if the worker ID is empty, has an invalid length, or doesn't match the expected pattern
         if (StringUtils.isEmpty(workerId)
                 || workerId.length() != 64
                 || !Pattern.matches("^[0-9a-z]{64}$", workerId)) {
-            throw new WorkerException(
-                    WorkerErrorDetail.builder()
-                            .errorMessage("error")
-                            .errorCode("1234").build());
+            // Throw a DockerWorkerException if the worker ID is invalid
+            throw new DockerWorkerException(
+                    WorkerErrorInfo.builder()
+                            .error("1234")
+                            .description("Invalid worker ID.")
+                            .build());
         }
     }
 
-    private boolean executeWorkerWithStatus(
-            ContainerStatus status, String workerId, ContainerStatus currentStatus) {
-        if (currentStatus.equals(status)) {
-            return false;
+    @Override
+    public ResponseEntity<String> initializeWorker(String workerId) {
+        // Check if the worker exists
+        Optional<Worker> workerOptional = workerRepository.findById(workerId);
+        if (workerOptional.isPresent()) {
+            // Worker found, start the container
+            dockerManager.launchContainer(workerId);
+            return ResponseEntity.ok("Worker started successfully");
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Worker not found");
         }
-        switch (status) {
-            case running:
-                dockerClientUtils.stopContainer(workerId);
-                return true;
-            case paused:
-                dockerClientUtils.startContainer(workerId);
-                return true;
-        }
-        return false;
     }
+
+    @Override
+    public ResponseEntity<String> shutdownWorker(String workerId) {
+        // Check if the worker exists
+        Optional<Worker> workerOptional = workerRepository.findById(workerId);
+        if (workerOptional.isPresent()) {
+            // Worker found, stop the container
+            dockerManager.terminateContainer(workerId);
+            return ResponseEntity.ok("Worker stopped successfully");
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Worker not found");
+        }
+    }
+
+    @Override
+    public CreateContainerResponseDTO createWorker(CreateWorkerRequestDTO requestDTO) {
+        try {
+            // Create the container
+            CreateContainerResponseDTO responseDTO = dockerManager.buildContainer(requestDTO.getImageName(), requestDTO.getContainerName());
+
+            // Create a new Worker object
+            Worker worker = Worker.builder()
+                    .id(responseDTO.getId())
+                    .workerName(requestDTO.getContainerName())
+                    .dockerImageName(requestDTO.getImageName())
+                    .dockerImageId(responseDTO.getId())
+                    .status(ContainerState.created)
+                    .build();
+
+            // Save the worker in the repository
+            workerRepository.save(worker);
+
+            return responseDTO;
+        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
+            return CreateContainerResponseDTO.builder().message("Image Not Found").build();
+        }
+    }
+
 }

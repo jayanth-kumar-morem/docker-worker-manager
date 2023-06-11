@@ -1,40 +1,61 @@
 package ai.openfabric.api.controller;
 
-import ai.openfabric.api.dtos.ContainerListPageDTO;
-import ai.openfabric.api.dtos.WorkerResponseDTO;
-import ai.openfabric.api.dtos.WorkerStatsResponseDTO;
-import ai.openfabric.api.enums.ContainerStatus;
-import ai.openfabric.api.exceptions.WorkerException;
+import ai.openfabric.api.dtos.*;
+import ai.openfabric.api.enums.ContainerState;
+import ai.openfabric.api.exceptions.DockerWorkerException;
 import ai.openfabric.api.services.IWorkerService;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import javax.validation.Valid;
+import java.util.List;
 
 @RestController
 @RequestMapping("${node.api.path}/worker")
 public class WorkerController {
 
-    @Autowired IWorkerService workerService;
+    private final IWorkerService workerService;
 
-    @GetMapping(path = "/{workerId}/info")
-    public @ResponseBody WorkerResponseDTO workerInfo(@PathVariable String workerId) throws WorkerException {
-        return workerService.getWorkerInformation(workerId);
+    @Autowired
+    public WorkerController(IWorkerService workerService) {
+        this.workerService = workerService;
     }
 
-    @GetMapping(path = "/lists")
-    public @ResponseBody List<WorkerResponseDTO> workerList(
-            @RequestBody ContainerListPageDTO pageInfo) throws WorkerException {
-        return workerService.getContainerList(pageInfo);
+    @GetMapping("/info/{workerId}")
+    public WorkerInfoDTO fetchWorkerInfo(@PathVariable String workerId) throws DockerWorkerException {
+        return workerService.retrieveWorkerInformation(workerId);
     }
 
-    @PostMapping(path = "/{workerId}/update-status")
-    public @ResponseBody WorkerResponseDTO updateStatus(
-            @PathVariable String workerId, @RequestHeader ContainerStatus newStatus) throws WorkerException {
-        return workerService.updateWorkerStatus(workerId, newStatus);
+    @PostMapping("/stop/{id}")
+    public ResponseEntity<String> stopWorker(@PathVariable String id) {
+        return workerService.shutdownWorker(id);
     }
 
-    @GetMapping(path = "/{workerId}/stats")
-    public @ResponseBody WorkerStatsResponseDTO workerStatus(@PathVariable String workerId) throws WorkerException {
-        return workerService.getWorkerStatistics(workerId);
+    @PostMapping("/start/{id}")
+    public ResponseEntity<String> startWorker(@PathVariable String id) {
+        return workerService.initializeWorker(id);
+    }
+
+    @PostMapping("/list")
+    public List<WorkerInfoDTO> fetchWorkerList(@Valid @RequestBody ContainersListRequestDTO pageInfo) throws DockerWorkerException {
+        return workerService.retrieveContainerList(pageInfo);
+    }
+
+    @PostMapping("/status/{workerId}")
+    public WorkerInfoDTO updateWorkerStatus(
+            @PathVariable String workerId, @RequestHeader ContainerState newStatus) throws DockerWorkerException {
+        return workerService.setWorkerState(workerId, newStatus);
+    }
+
+    @GetMapping("/stats/{workerId}")
+    public WorkerStatisticsDTO fetchWorkerStatus(@PathVariable String workerId) throws DockerWorkerException {
+        return workerService.retrieveWorkerStatistics(workerId);
+    }
+
+    @PostMapping("/create")
+    public ResponseEntity<CreateContainerResponseDTO> createWorker(@RequestBody CreateWorkerRequestDTO requestDTO) throws DockerWorkerException {
+        CreateContainerResponseDTO createContainerResponseDTO = workerService.createWorker(requestDTO);
+        return ResponseEntity.ok(createContainerResponseDTO);
     }
 }

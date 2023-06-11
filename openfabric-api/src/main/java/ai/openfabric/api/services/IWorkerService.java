@@ -1,19 +1,20 @@
 package ai.openfabric.api.services;
 
-import ai.openfabric.api.dtos.ContainerListPageDTO;
-import ai.openfabric.api.dtos.WorkerResponseDTO;
-import ai.openfabric.api.dtos.WorkerStatsResponseDTO;
-import ai.openfabric.api.enums.ContainerStatus;
-import ai.openfabric.api.exceptions.WorkerException;
+import ai.openfabric.api.dtos.*;
+import ai.openfabric.api.enums.ContainerState;
+import ai.openfabric.api.exceptions.DockerWorkerException;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 
 public interface IWorkerService {
-    WorkerResponseDTO updateWorkerStatus(String workerId, ContainerStatus newStatus) throws WorkerException;
+    WorkerInfoDTO retrieveWorkerInformation(String workerId) throws DockerWorkerException;
+    List<WorkerInfoDTO> retrieveContainerList(ContainersListRequestDTO pageInfo) throws DockerWorkerException;
+    WorkerStatisticsDTO retrieveWorkerStatistics(String workerId) throws DockerWorkerException;
+    public ResponseEntity<String> initializeWorker(String workerID);
+    public ResponseEntity<String> shutdownWorker(String workerID);
 
-    WorkerResponseDTO getWorkerInformation(String workerId) throws WorkerException;
+    public CreateContainerResponseDTO createWorker(CreateWorkerRequestDTO requestDTO) ;
 
-    List<WorkerResponseDTO> getContainerList(ContainerListPageDTO pageInfo) throws WorkerException;
-
-    WorkerStatsResponseDTO getWorkerStatistics(String workerId) throws WorkerException;
+    WorkerInfoDTO setWorkerState(String workerId, ContainerState newStatus) throws DockerWorkerException;
 }

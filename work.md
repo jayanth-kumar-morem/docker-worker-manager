@@ -25,3 +25,14 @@
 3. Got to know the swagger-ui little late. (Thanks!)
 
 
+
+* 📄 List workers (paginated)
+* ▶️ Start and ⏹️ Stop worker
+* 🔍 Get worker information
+* 📊 Get worker statistics
+
+
+1. start
+2. stop
+3. list
+4. 
